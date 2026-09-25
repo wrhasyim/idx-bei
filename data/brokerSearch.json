@@ -1,7 +1,7 @@
 {
   "draw": 0,
-  "recordsTotal": 90,
-  "recordsFiltered": 90,
+  "recordsTotal": 89,
+  "recordsFiltered": 89,
   "data": [
     {
       "Code": "XC",
@@ -421,11 +421,6 @@
     {
       "Code": "MI",
       "Name": "VICTORIA SEKURITAS INDONESIA",
-      "License": "Penjamin Emisi Efek, Perantara Pedagang Efek"
-    },
-    {
-      "Code": "AN",
-      "Name": "WANTEG SEKURITAS",
       "License": "Penjamin Emisi Efek, Perantara Pedagang Efek"
     },
     {
