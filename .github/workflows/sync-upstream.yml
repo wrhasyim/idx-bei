@@ -1,0 +1,31 @@
+name: Sync Fork with Upstream (nichsedge/idx-bei)
+
+on:
+  schedule:
+    - cron: '0 10 * * *'  # Setiap hari jam 17:00 WIB (10:00 UTC)
+  workflow_dispatch:       # Bisa di-trigger manual dari tab Actions
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "TradeHub Auto Sync"
+          git config user.email "sync@tradehub.id"
+
+      - name: Sync with upstream
+        run: |
+          git remote add upstream https://github.com/nichsedge/idx-bei.git || true
+          git fetch upstream
+          git checkout main
+          git merge upstream/main --no-edit --allow-unrelated-histories || echo "Already up to date or merge conflict"
+          git push origin main || echo "Nothing to push"
