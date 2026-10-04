@@ -56,29 +56,47 @@ uv run idx parquet
 uv run idx compact
 ```
 
-### Forensic Quality & DCA Compounder Screener
+### Forensic Quality & DCA Compounder Screener (Native Go)
 
 ```bash
 # Screen top long-term DCA compounders with forensic anti-trap protection
-uv run idx compounder --top 15
+idx compounder --top 15
 
 # Analyze specific ticker for forensic quality, Justified PBV, and DCA suitability
-uv run idx compounder BMRI
-uv run idx compounder LPKR
+idx compounder BMRI
+idx compounder BBCA
 
 # Inspect identified accounting value traps (one-off earnings distortions)
-uv run idx compounder --show-traps
+idx compounder --show-traps
 ```
 
-### Quantitative Backtesting & Strategy Simulator
+### Quantitative Dividend Decision & Trap Radar (Native Go)
+
+```bash
+# Analyze specific ticker for dividend yield, DPR, and Ex-Date trap risk
+idx dividend BBCA
+idx dividend PTBA
+
+# Screen top dividend opportunities across the entire market
+idx dividend --screen --min-yield 8.0
+```
+
+### Market Signals & Stealth Institutional Accumulation (Native Go)
+
+```bash
+# Daily foreign flow accumulation & stealth accumulation briefing
+idx signals
+
+# Scan for stealth accumulation (quiet foreign buying during consolidation)
+idx bandarmology --stealth
+```
+
+### Quantitative Backtesting & Strategy Simulator (Native Go)
 
 ```bash
 # Backtest strategy holding returns, Sharpe ratios, and max drawdowns
-uv run idx backtest --strategy foreign_flow --holding 20 --top 10
-uv run idx backtest --strategy composite_alpha --holding 20 --stop-loss 7.0 --take-profit 15.0
-
-# Simulate Dividend Arbitrage (Naive Hold vs Pre-Cum Exit vs Post-Ex Rebuy)
-uv run idx backtest --strategy dividend_arbitrage
+idx backtest --strategy foreign_flow --holding 20 --top 10
+idx backtest --strategy composite_alpha --holding 20 --stop-loss 7.0 --take-profit 15.0
 ```
 
 ### Knowledge Graph & Ultimate Beneficial Ownership (UBO)
@@ -255,33 +273,45 @@ uv run idx graph --ingest
 # URL: http://localhost:7474 (user: neo4j, password: password)
 ```
 
-## 📱 Termux & Android Scheduling (Standalone / Embedded)
+## ⚡ High-Performance Go Engine & Standalone CLI (`idx`)
 
-For running daily scheduled ingestion directly on Android without heavy C++ compilation errors (`duckdb`, `pyarrow`, `curl_cffi`):
-
-### Option 1: Standalone Go Syncer (`tools/idx-sync`) — Zero Python Dependencies
-Built with pure-Go uTLS Chrome/Safari fingerprint impersonation to bypass Cloudflare WAF natively:
+The repository includes a 100% native Go implementation (`CGO_ENABLED=0`) providing sub-millisecond REST & WebSocket APIs, pure Go Parquet analytics, vectorized technical indicators, and uTLS Cloudflare bypass ingestion:
 
 ```bash
-# Build natively inside Termux
-pkg install golang git
-cd tools/idx-sync && go build -o ../../bin/idx-sync .
+# Build & install native Go binaries (idx, idx-server, idx-sync)
+make install
 
-# Run daily sync (OHLCV, Broker summary, Index summary, USD/IDR rate)
+# Cross-compile static ARM64 binaries for Android Termux
+make build-arm64
+
+# Start high-performance REST & WebSocket server on port 8000
+idx serve --port 8000
+
+# Screen top institutional DCA compounders
+idx compounder --top 15
+idx compounder BBRI
+
+# Inspect Parquet OHLCV and compute RSI-14, EMA-20/50/200, Bollinger Bands, ATR-14
+idx stock BBCA 10
+
+# Ingest daily market-close data via standalone uTLS
+idx sync
+```
+
+## 📱 Native Android Termux Integration
+
+100% Native Termux Standalone Architecture (Zero PRoot / Zero container overhead):
+Built with pure-Go uTLS Chrome/Safari fingerprint impersonation to bypass Cloudflare WAF natively and parquet analytics without heavy C-extensions:
+
+```bash
+# Build natively inside Termux or copy precompiled bin/idx-sync-android-arm64
+make build-arm64
+
+# Daily scheduled ingestion (OHLCV, Broker summary, Index summary, USD/IDR rate)
 ./bin/idx-sync -data-dir ./data
 
 # Or schedule with Termux cronie (16:45 WIB):
 # 45 16 * * 1-5 /data/data/com.termux/files/home/idx-bei/scripts/termux_schedule.sh >> /data/data/com.termux/files/home/idx-sync.log 2>&1
-```
-*Note: JSON partitions produced by `idx-sync` are automatically converted to snappy `.parquet` whenever `uv run idx compact` or `timeseries.migrate_all()` is executed on your workstation.*
-
-### Option 2: PRoot Distro (Debian / Ubuntu) — Full Python Stack on Android
-If you need the full analytical suite (DuckDB, Parquet, 8-screen signals) on Android, run inside PRoot where standard `manylinux_aarch64` wheels install instantly:
-
-```bash
-pkg install proot-distro cronie
-proot-distro install debian
-proot-distro login debian -- bash -c "cd ~/idx-bei && uv run idx daily"
 ```
 
 ---
@@ -290,15 +320,15 @@ proot-distro login debian -- bash -c "cd ~/idx-bei && uv run idx daily"
 
 | Layer | Tools |
 |-------|-------|
-| Backend Language | Python 3.13+ |
-| Package Manager | [uv](https://github.com/astral-sh/uv) (root workspace) |
-| Web API & Realtime | FastAPI, WebSockets, Uvicorn |
+| Systems Engine & Server | Go 1.24+ (Pure Go, 0 CGO, `parquet-go`, `tls-client`, `websocket`) |
+| Data Science & MCP | Python 3.13+ (Astral `uv` workspace) |
+| Web API & Realtime | Native Go 1.22+ `http.ServeMux` & WebSocket / FastAPI fallback |
 | Frontend SPA | React 19, TypeScript, Vite, Tailwind/CSS tokens, Lucide |
 | Charting & Visualization | TradingView Lightweight Charts v5, Vis.js Network |
-| HTTP Client | `curl_cffi` (browser impersonation, Cloudflare bypass) |
-| Query & Storage | DuckDB, Parquet (`pyarrow`), JSON |
+| HTTP Client | Pure Go uTLS (`tls-client`) & Python `curl_cffi` |
+| Query & Storage | Parquet (`parquet-go` & `pyarrow`), DuckDB, JSON |
 | Databases | Neo4j (graph), PostgreSQL (relational) |
-| Quantitative Engine | `numpy`, `pandas`, vectorized backtesting |
+| Quantitative Engine | Pure Go technical indicator calculations, Python `numpy`/`pandas` |
 | AI Assistant Protocol | Model Context Protocol (MCP stdio) |
 | Infrastructure | Docker Compose |
 
