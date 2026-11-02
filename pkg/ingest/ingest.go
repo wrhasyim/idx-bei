@@ -3,14 +3,17 @@ package ingest
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	fhttp "github.com/bogdanfinn/fhttp"
@@ -23,7 +26,11 @@ import (
 const (
 	DefaultBaseURL = "https://www.idx.co.id/primary"
 	DefaultOpenFX  = "https://open.er-api.com/v6/latest/USD"
+	FallbackOpenFX = "https://api.frankfurter.dev/v1/latest?base=USD&symbols=IDR"
 )
+
+// FXSources represents the ordered FX endpoints attempted during rate ingestion.
+var FXSources = []string{DefaultOpenFX, FallbackOpenFX}
 
 type EndpointConfig struct {
 	Name    string
@@ -144,7 +151,7 @@ func RunDailySync(opts SyncOptions) (*SyncSummary, error) {
 	}
 
 	// 2. Fetch USD/IDR exchange rate
-	rate, err := FetchUSDIDRRate()
+	rate, source, err := FetchUSDIDRRate()
 	if err != nil {
 		log.Printf("WARN: Failed to refresh USD/IDR exchange rate: %v", err)
 	} else {
@@ -153,7 +160,7 @@ func RunDailySync(opts SyncOptions) (*SyncSummary, error) {
 		ratePayload := map[string]any{
 			"rate":      rate,
 			"timestamp": time.Now().Unix(),
-			"source":    "open.er-api.com (go-idx-sync)",
+			"source":    fmt.Sprintf("%s (go-idx-sync)", source),
 		}
 		if err := WriteJSONAtomic(rateFile, ratePayload); err != nil {
 			log.Printf("WARN: Failed to save %s: %v", rateFile, err)
@@ -165,6 +172,10 @@ func RunDailySync(opts SyncOptions) (*SyncSummary, error) {
 	// 3. Optional Webhook
 	if opts.WebhookURL != "" {
 		_ = SendDiscordWebhook(opts.WebhookURL, *summary)
+	}
+
+	if len(summary.Errors) > 0 {
+		return summary, fmt.Errorf("ingestion encountered %d error(s): %s", len(summary.Errors), strings.Join(summary.Errors, "; "))
 	}
 
 	return summary, nil
@@ -271,9 +282,33 @@ func FetchWithRetry(client tls_client.HttpClient, url string, maxRetries int, de
 	return nil, fmt.Errorf("max retries exceeded: %w", lastErr)
 }
 
-func FetchUSDIDRRate() (float64, error) {
+func FetchUSDIDRRate() (float64, string, error) {
+	return FetchUSDIDRRateFromSources(FXSources)
+}
+
+// FetchUSDIDRRateFromSources attempts to fetch the USD/IDR rate sequentially from the given source URLs.
+func FetchUSDIDRRateFromSources(sources []string) (float64, string, error) {
+	var errs []error
+	for _, rawURL := range sources {
+		rate, err := fetchUSDIDRFrom(rawURL)
+		if err == nil {
+			return rate, sourceHost(rawURL), nil
+		}
+		errs = append(errs, fmt.Errorf("%s: %w", sourceHost(rawURL), err))
+	}
+	return 0, "", errors.Join(errs...)
+}
+
+func sourceHost(rawURL string) string {
+	if u, err := url.Parse(rawURL); err == nil && u.Host != "" {
+		return u.Host
+	}
+	return rawURL
+}
+
+func fetchUSDIDRFrom(sourceURL string) (float64, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequest("GET", DefaultOpenFX, nil)
+	req, err := http.NewRequest("GET", sourceURL, nil)
 	if err != nil {
 		return 0, err
 	}
