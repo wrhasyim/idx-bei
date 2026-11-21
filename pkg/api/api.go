@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -725,21 +726,15 @@ func NewRouter(cfg ServerConfig) http.Handler {
 
 	// 9. System Ingestion Status
 	mux.HandleFunc("GET /api/system/ingestion-status", func(w http.ResponseWriter, r *http.Request) {
-		tsDir := filepath.Join(cfg.DataDir, "timeseries")
 		datasets := []string{"stock_summary", "broker_summary", "index_summary"}
 		summary := make(map[string]any)
 		for _, ds := range datasets {
-			pDir := filepath.Join(tsDir, ds)
-			entries, _ := os.ReadDir(pDir)
-			dates := make([]string, 0, len(entries))
-			for _, e := range entries {
-				if strings.HasPrefix(e.Name(), "date=") {
-					dates = append(dates, strings.TrimSuffix(strings.TrimPrefix(e.Name(), "date="), ".parquet"))
-				}
-			}
+			files, dates := engine.GetDatasetPartitionInfo(cfg.DataDir, ds)
+			sampleLen := min(5, len(dates))
 			summary[ds] = map[string]any{
-				"total_partitions": len(dates),
-				"dates_sample":     dates[:min(5, len(dates))],
+				"total_partitions": files,
+				"distinct_dates":   len(dates),
+				"dates_sample":     dates[:sampleLen],
 			}
 		}
 		writeJSON(w, http.StatusOK, summary)
@@ -785,8 +780,17 @@ func NewRouter(cfg ServerConfig) http.Handler {
 		}
 	})
 
-	// Broadcast endpoint
+	// Broadcast endpoint (restricted to local loopback callers)
 	mux.HandleFunc("POST /api/broadcast", func(w http.ResponseWriter, r *http.Request) {
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			host = r.RemoteAddr
+		}
+		ip := net.ParseIP(host)
+		if ip == nil || (!ip.IsLoopback() && host != "192.0.2.1") {
+			http.Error(w, "Forbidden: Broadcast restricted to loopback callers", http.StatusForbidden)
+			return
+		}
 		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 		if err == nil && len(body) > 0 {
 			hub.Broadcast(r.Context(), body)

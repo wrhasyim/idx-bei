@@ -7,12 +7,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/nichsedge/idx-bei/pkg/api"
 )
 
 func main() {
-	hostFlag := flag.String("host", "0.0.0.0", "Host interface to bind to")
+	hostFlag := flag.String("host", "127.0.0.1", "Host interface to bind to")
 	portFlag := flag.Int("port", 8000, "Port to listen on")
 	dataDirFlag := flag.String("data-dir", "data", "Base data directory")
 	flag.Parse()
@@ -47,7 +48,13 @@ func main() {
 	log.Printf("  • Data Dir:       %s", cfg.DataDir)
 
 	router := api.NewRouter(cfg)
-	if err := http.ListenAndServe(addr, router); err != nil {
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
